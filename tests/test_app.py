@@ -44,3 +44,7 @@ def test_explore_filters(at):
     ms.set_value([ms.options[0]]).run()
     assert not at.exception
     assert any(m.label == "Flights" for m in at.metric)
+
+
+def test_early_inbound_is_described_as_early(at):
+    assert any("arrived 16 min early" in m.value for m in at.markdown)

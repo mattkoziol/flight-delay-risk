@@ -73,7 +73,8 @@ def inbound_text(r):
         return "No inbound leg found for this aircraft earlier that day (first flight of the day or tail number missing)."
     turn = f"{t:.0f}-minute scheduled turnaround"
     if s == "arrived":
-        return f"Inbound aircraft arrived {'on time' if k <= 0 else f'{k:.0f} min late'}, with a {turn}."
+        when = "exactly on time" if k == 0 else f"{abs(k):.0f} min {'early' if k < 0 else 'late'}"
+        return f"Inbound aircraft arrived {when}, with a {turn}."
     if s == "overdue":
         return f"Inbound aircraft still had not arrived at departure time (more than {k:.0f} min late), {turn}."
     if s == "disrupted":
