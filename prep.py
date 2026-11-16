@@ -54,7 +54,7 @@ metrics = dict(auc=t50["auc"], pr_auc=t50["pr_auc"], brier=t50["brier"], ece=t50
                base_rate=float(df["delayed"].mean()), test_base_rate=float(test["delayed"].mean()),
                rows={s: int((df["split"] == s).sum()) for s in ("train", "valid", "test")},
                dates={s: [str(d.date()) for d in (g["FlightDate"].min(), g["FlightDate"].max())]
-                      for s, g in df.groupby("split")})
+                      for s, g in df.groupby("split", observed=True)})
 json.dump({k: (float(v) if isinstance(v, (np.floating, float)) else v) for k, v in metrics.items()},
           open(os.path.join("data", "metrics.json"), "w"), indent=2)
 shutil.copy(os.path.join(A6, "models", "hgb.joblib"), os.path.join("models", "hgb.joblib"))
