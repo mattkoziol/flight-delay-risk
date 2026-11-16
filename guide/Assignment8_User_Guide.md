@@ -4,7 +4,7 @@
 
 ## How AI tools were used
 
-I used Claude Code (Opus 5.5) as a coding assistant for this project. I described the assignment to it and worked through the design in conversation, including turning my assignment 5 and 6 flight delay model into the product instead of starting over, choosing a hosted Streamlit app over a REST API or Gradio so it could be opened from a link, using the gradient boosting model because the random forest file was too large for free hosting, looking up real scheduled flights so the model gets the same 28 inputs it was trained on, the inbound aircraft what-if control, the risk label cutoffs, and the dashboard charts. Claude helped write the app, the data preparation script, and the 32 unit tests, and took the screenshots in this guide from the running app. I ran the tests and the app myself, deployed it on Streamlit Community Cloud, checked every tab, and went back through this guide to make sure each number matched what the app shows.
+I used Claude Code (Opus 5.5) as a coding assistant for this project. I described the assignment to it and worked through the design in conversation, including turning my assignment 5 and 6 flight delay model into the product instead of starting over, choosing a hosted Streamlit app over a REST API or Gradio so it could be opened from a link, using the gradient boosting model because the random forest file was too large for free hosting, looking up real scheduled flights so the model gets the same 28 inputs it was trained on, the inbound aircraft what-if control, the risk label cutoffs, and the dashboard charts. Claude helped write the app, the data preparation script, and the 38 unit tests, and took the screenshots in this guide from the running app. I ran the tests and the app myself, deployed it on Streamlit Community Cloud, checked every tab, and went back through this guide to make sure each number matched what the app shows.
 
 ## 1. What the tool does
 
@@ -53,7 +53,7 @@ The strongest single input to the model is whether the aircraft that will operat
 - **Inbound late by…:** A slider from 0 to 240 minutes. If the delay is longer than the scheduled turnaround, the aircraft is treated as still not at the gate when the flight was supposed to leave, which is how it was coded in assignment 5.
 - **Inbound cancelled or diverted:** The aircraft's previous flight never arrived normally.
 
-For the worked example, the recorded 17% becomes 24% if the inbound is exactly on time (it really arrived 16 minutes early), 44% at 15 minutes late, 84% at 30 minutes late, 99% at 60 minutes late, and 69% if the inbound flight was cancelled or diverted. With only a 40-minute turnaround, there is very little room to absorb a late inbound. If a flight is the aircraft's first of the day, there is no inbound aircraft and the what-if is turned off with a short explanation.
+For the worked example, the recorded 17% becomes 24% if the inbound is exactly on time (it really arrived 16 minutes early), 44% at 15 minutes late, 83% at 30 minutes late, 99% at 60 minutes late, and 69% if the inbound flight was cancelled or diverted. With only a 40-minute turnaround, there is very little room to absorb a late inbound. If the model has no connecting inbound aircraft for a flight (it is the aircraft's first flight of the day, the previous flight ended at another airport, or the tail number is missing), the what-if is turned off with a short explanation.
 
 **All departures on the route that day:** The expander under the what-if lists every departure on the chosen route that day with its model risk as a bar and its actual arrival delay, so a traveler could compare options.
 
@@ -74,7 +74,7 @@ The **About the model** tab shows the model's results on March 2026, a month it 
 
 - **Model:** A scikit-learn histogram gradient boosting classifier trained in assignment 6 on 838,585 flights from January 1 to February 18, 2026. The saved model file (2.2 MB) is loaded by the app exactly as it was saved.
 - **Data:** A preparation script (prep.py) takes the assignment 5 feature table and joins it with the flight numbers, times, and outcomes, then stores it as one 61 MB file with all 28 model inputs for every flight. A test checks that the app's live predictions match the assignment 6 predictions to within 0.000001 on 20,000 random flights.
-- **Prediction:** Choosing a flight looks up its row and runs the model on it, which takes about 5 milliseconds. The what-if control changes only the two inbound aircraft inputs and runs the model again.
+- **Prediction:** Choosing a flight looks up its row and runs the model on it, which takes a few milliseconds. The what-if control changes only the two inbound aircraft inputs and runs the model again.
 
 ## 7. Scalability
 

@@ -67,21 +67,6 @@ def pct(p):
     return f"{p:.0%}"
 
 
-def inbound_text(r):
-    s, k, t = r["inb_status_gate"], r["inb_known_gate"], r["sched_turnaround"]
-    if s == "none":
-        return "No inbound leg found for this aircraft earlier that day (first flight of the day or tail number missing)."
-    turn = f"{t:.0f}-minute scheduled turnaround"
-    if s == "arrived":
-        when = "exactly on time" if k == 0 else f"{abs(k):.0f} min {'early' if k < 0 else 'late'}"
-        return f"Inbound aircraft arrived {when}, with a {turn}."
-    if s == "overdue":
-        return f"Inbound aircraft still had not arrived at departure time (more than {k:.0f} min late), {turn}."
-    if s == "disrupted":
-        return f"Inbound aircraft's previous leg was cancelled or diverted ({turn})."
-    return f"Inbound aircraft was not yet due at departure time ({turn})."
-
-
 def outcome_text(r):
     d = r["ArrDelay"]
     if np.isnan(d):
@@ -122,12 +107,13 @@ with predict:
         st.info("No scheduled flights match these choices. Try another date, airline or airport.")
         st.stop()
 
-    labels = {i: f"{airline} {r.Flight_Number_Reporting_Airline} · departs {core.fmt_hhmm(r.CRSDepTime)}, "
-                 f"arrives {core.fmt_hhmm(r.CRSArrTime)}" for i, r in legs.iterrows()}
-    has_inbound = legs["sched_turnaround"].notna().values
+    base = [f"{airline} {r.Flight_Number_Reporting_Airline} · departs {core.fmt_hhmm(r.CRSDepTime)}, "
+            f"arrives {core.fmt_hhmm(r.CRSArrTime)}" for r in legs.itertuples()]
+    labels = {(t if base.count(t) == 1 else f"{t} ({n + 1})"): i for n, (t, i) in enumerate(zip(base, legs.index))}
+    has_inbound = (legs["sched_turnaround"] > 0).values
     pick = st.selectbox(f"Departure ({len(legs)} on this route that day)", list(labels), key="flight",
-                        format_func=labels.get, index=int(has_inbound.argmax()) if has_inbound.any() else 0)
-    row = legs.loc[[pick]]
+                        index=int(has_inbound.argmax()) if has_inbound.any() else 0)
+    row = legs.loc[[labels[pick]]]
     r = row.iloc[0]
     p = float(core.score(MODEL, row)[0])
     label = core.risk_label(p)
@@ -147,23 +133,20 @@ with predict:
                   help=f"Actual delay rate of all flights leaving in the {core.fmt_hhmm(r.dep_hour * 100)} hour, January to March")
     with right:
         st.markdown("**What the model saw**")
-        st.markdown(f"- {inbound_text(r)}\n"
-                    f"- {r.orig_dep_hour_n:.0f} departures scheduled at {origin} in the same hour "
-                    f"({r.orig_dep_day_n:.0f} that day).\n"
-                    f"- Leg {r.leg_num:.0f} of {r.legs_day:.0f} for this aircraft today. "
-                    f"Scheduled block time {r.crs_elapsed:.0f} min for {r.distance:.0f} miles."
-                    if not np.isnan(r.leg_num) else
-                    f"- {inbound_text(r)}\n- {r.orig_dep_hour_n:.0f} departures scheduled at {origin} in the same hour.")
+        st.markdown("\n".join(f"- {line}" for line in core.model_saw(r)))
         with st.expander("What actually happened"):
             st.markdown(outcome_text(r))
             st.caption("The model only used information available at the gate before departure, never this outcome.")
 
     st.subheader("What if the inbound plane were different?")
-    no_inbound = np.isnan(r["sched_turnaround"])
-    choice = st.radio("Inbound aircraft", WHAT_IF, key="inbound", horizontal=True, disabled=bool(no_inbound),
-                      label_visibility="collapsed")
+    no_inbound = not core.has_inbound(r)
     if no_inbound:
-        st.caption("This flight has no earlier leg for the same aircraft that day, so there is no inbound plane to change.")
+        choice = st.radio("Inbound aircraft", WHAT_IF, key="inbound_off", horizontal=True, disabled=True, index=0,
+                          label_visibility="collapsed")
+        st.caption("The model found no connecting inbound plane with time on the ground before this departure, "
+                   "so there is nothing to change.")
+    else:
+        choice = st.radio("Inbound aircraft", WHAT_IF, key="inbound", horizontal=True, label_visibility="collapsed")
     minutes = 0
     if choice == WHAT_IF[2] and not no_inbound:
         minutes = st.slider("Minutes late", 0, 240, 60, step=5, key="late_min")
@@ -200,42 +183,42 @@ with explore:
     if sel_mon:
         d = d[d["month"].map(MONTHS).isin(sel_mon)]
     if d.empty:
-        st.info("No flights match these filters.")
-        st.stop()
+        st.info("No flights match these filters. Clear one of them to see results.")
+    else:
 
-    by_hour = rate(d, "dep_hour")
-    by_hour["hour"] = [core.fmt_hhmm(h * 100).replace(":00", "") for h in by_hour["dep_hour"]]
-    by_hour = by_hour[by_hour["n"] >= 30]
-    by_day = rate(d, "weekday").assign(day=lambda g: [WEEKDAYS[int(w) - 1] for w in g["weekday"]])
-    by_air = rate(d, "carrier_name").sort_values("rate", ascending=False)
-    by_org = rate(d, "Origin").sort_values("n", ascending=False).head(15).sort_values("rate", ascending=False)
-    by_org["Origin"] = by_org["Origin"].astype(str)
-    worst = by_hour.loc[by_hour["rate"].idxmax()] if len(by_hour) else None
+        by_hour = rate(d, "dep_hour")
+        by_hour["hour"] = [core.fmt_hhmm(h * 100).replace(":00", "") for h in by_hour["dep_hour"]]
+        by_hour = by_hour[by_hour["n"] >= 30]
+        by_day = rate(d, "weekday").assign(day=lambda g: [WEEKDAYS[int(w) - 1] for w in g["weekday"]])
+        by_air = rate(d, "carrier_name").sort_values("rate", ascending=False)
+        by_org = rate(d, "Origin").sort_values("n", ascending=False).head(15).sort_values("rate", ascending=False)
+        by_org["Origin"] = by_org["Origin"].astype(str)
+        worst = by_hour.loc[by_hour["rate"].idxmax()] if len(by_hour) else None
 
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Flights", f"{int(d['n'].sum()):,}")
-    k2.metric("Arrived 15+ min late", pct(d["n_delayed"].sum() / d["n"].sum()))
-    k3.metric("Worst departure hour", worst["hour"] if worst is not None else "–",
-              pct(worst["rate"]) + " delayed" if worst is not None else None, delta_color="off", delta_arrow="off")
-    k4.metric("Best weekday", by_day.loc[by_day["rate"].idxmin(), "day"],
-              pct(by_day["rate"].min()) + " delayed", delta_color="off", delta_arrow="off")
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("Flights", f"{int(d['n'].sum()):,}")
+        k2.metric("Arrived 15+ min late", pct(d["n_delayed"].sum() / d["n"].sum()))
+        k3.metric("Worst departure hour", worst["hour"] if worst is not None else "–",
+                  pct(worst["rate"]) + " delayed" if worst is not None else None, delta_color="off", delta_arrow="off")
+        k4.metric("Best weekday", by_day.loc[by_day["rate"].idxmin(), "day"],
+                  pct(by_day["rate"].min()) + " delayed", delta_color="off", delta_arrow="off")
 
-    hour_order = [core.fmt_hhmm(h * 100).replace(":00", "") for h in range(24)]
-    g1, g2 = st.columns(2)
-    g1.altair_chart(bar(by_hour, "hour", "rate", "Delay rate by scheduled departure hour", sort=hour_order),
-                    use_container_width=True)
-    g2.altair_chart(bar(by_day, "day", "rate", "Delay rate by day of week", sort=WEEKDAYS), use_container_width=True)
-    g3, g4 = st.columns(2)
-    g3.altair_chart(bar(by_air, "carrier_name", "rate", "Delay rate by airline", sort="-x", horizontal=True),
-                    use_container_width=True)
-    g4.altair_chart(bar(by_org, "Origin", "rate", "Delay rate at the 15 busiest airports", sort="-x",
-                        horizontal=True), use_container_width=True)
-    st.caption("Delay = arrival 15 or more minutes after schedule. Cancelled and diverted flights are excluded. "
-               "Hours with fewer than 30 flights are hidden.")
-    with st.expander("Table view"):
-        st.dataframe(by_air.rename(columns={"carrier_name": "Airline", "n": "Flights", "n_delayed": "Delayed",
-                                            "rate": "Delay rate"}), hide_index=True, use_container_width=True,
-                     column_config={"Delay rate": st.column_config.NumberColumn(format="percent")})
+        hour_order = [core.fmt_hhmm(h * 100).replace(":00", "") for h in range(24)]
+        g1, g2 = st.columns(2)
+        g1.altair_chart(bar(by_hour, "hour", "rate", "Delay rate by scheduled departure hour", sort=hour_order),
+                        use_container_width=True)
+        g2.altair_chart(bar(by_day, "day", "rate", "Delay rate by day of week", sort=WEEKDAYS), use_container_width=True)
+        g3, g4 = st.columns(2)
+        g3.altair_chart(bar(by_air, "carrier_name", "rate", "Delay rate by airline", sort="-x", horizontal=True),
+                        use_container_width=True)
+        g4.altair_chart(bar(by_org, "Origin", "rate", "Delay rate at the 15 busiest airports", sort="-x",
+                            horizontal=True), use_container_width=True)
+        st.caption("Delay = arrival 15 or more minutes after schedule. Cancelled and diverted flights are excluded. "
+                   "Hours with fewer than 30 flights are hidden.")
+        with st.expander("Table view"):
+            st.dataframe(by_air.rename(columns={"carrier_name": "Airline", "n": "Flights", "n_delayed": "Delayed",
+                                                "rate": "Delay rate"}), hide_index=True, use_container_width=True,
+                         column_config={"Delay rate": st.column_config.NumberColumn(format="percent")})
 
 with about:
     m = metrics()

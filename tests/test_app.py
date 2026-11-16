@@ -48,3 +48,18 @@ def test_explore_filters(at):
 
 def test_early_inbound_is_described_as_early(at):
     assert any("arrived 16 min early" in m.value for m in at.markdown)
+
+
+def test_empty_explore_keeps_about_tab(at):
+    at.multiselect(key="ex_airline").set_value(["Alaska Airlines Inc."]).run()
+    at.multiselect(key="ex_origin").set_value(["CLT"]).run()
+    assert not at.exception
+    assert any(m.label == "ROC AUC" for m in at.metric)
+
+
+def test_disabled_what_if_shows_as_recorded(at):
+    at.radio(key="inbound").set_value("Inbound late by…").run()
+    at.selectbox(key="flight").select_index(0).run()
+    radios = [r for r in at.radio if r.disabled]
+    assert radios and radios[0].value == "As recorded"
+    assert not any(m.label.startswith("What-if") for m in at.metric)

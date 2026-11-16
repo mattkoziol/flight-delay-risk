@@ -75,3 +75,30 @@ def test_risk_label(p, label):
                                  (1200, "12:00 PM"), (2359, "11:59 PM"), (59, "12:59 AM")])
 def test_fmt_hhmm(v, s):
     assert core.fmt_hhmm(v) == s
+
+
+def test_zero_turnaround_has_no_what_if(flights):
+    r = one_row(flights, 0)
+    assert not core.has_inbound(r.iloc[0])
+    with pytest.raises(ValueError):
+        core.with_inbound(r, "late", 30)
+    assert core.has_inbound(one_row(flights, 45).iloc[0])
+
+
+def test_inbound_text_without_connecting_leg(flights):
+    r = flights[flights["sched_turnaround"].isna() & (flights["leg_num"] > 1)].iloc[0]
+    text = core.inbound_text(r)
+    assert "first flight" not in text and "no connecting inbound" in text.lower()
+
+
+def test_model_saw_has_no_nan(flights):
+    r = flights[flights["crs_elapsed"].isna()].iloc[0]
+    assert "nan" not in " ".join(core.model_saw(r)).lower()
+
+
+def test_load_peak_memory_under_750mb():
+    import subprocess, sys
+    code = ("import resource, sys, core; core.load_flights(); core.load_model();"
+            "print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1e6 if sys.platform == 'darwin' else 1e3))")
+    mb = float(subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, check=True).stdout)
+    assert mb < 750, mb

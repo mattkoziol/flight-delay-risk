@@ -24,6 +24,6 @@ Then open http://localhost:8501.
 - `data/flights.parquet`: 1,611,874 flights with the model's 28 inputs; `data/agg.parquet`: dashboard counts
 - `models/hgb.joblib`: the trained model (scikit-learn 1.7.2)
 - `prep.py`: rebuilds `data/` and `models/` from the Assignment 5 and 6 outputs (not needed to run the app)
-- `tests/`: `python -m pytest` (31 tests)
+- `tests/`: `python -m pytest` (38 tests)
 
 Data: BTS Reporting Carrier On-Time Performance, January to March 2026.
