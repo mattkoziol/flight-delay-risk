@@ -9,7 +9,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 HERE = os.path.dirname(os.path.abspath(__file__))
-APP_URL = os.environ.get("APP_URL", "{{APP_URL}}")
+APP_URL = os.environ.get("APP_URL", "https://flight-delay-risk-7f3c8ndjybutrhhgnuqwkg.streamlit.app/")
 
 
 def path(*p):

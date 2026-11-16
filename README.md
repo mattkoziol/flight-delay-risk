@@ -4,7 +4,7 @@ Pick a real US domestic flight from January to March 2026 and get the chance it 
 scored live by a gradient-boosting model (ROC AUC 0.817 on the March 2026 test month). Includes an inbound-aircraft
 what-if and a dashboard of delay patterns. IDC4290 Assignment 8.
 
-**Live app:** _link added after deployment_
+**Live app:** https://flight-delay-risk-7f3c8ndjybutrhhgnuqwkg.streamlit.app/
 
 ## Run it locally
 Python 3.12:
